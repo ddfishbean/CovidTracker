@@ -41,25 +41,13 @@ def project_description():
     Returns overall project description in markdown
     """
     return html.Div(children=[dcc.Markdown('''
-        # US COVID-19 Tracker
-        The coronavirus pandemic has caused more than one and half million deaths over the world.
-        The COVID-19 has exhausted the United States, and it seems a dark and deadly winter is waiting ahead.
-        Therefore, it is of crucial importance to understand and project the trend of COVID-19 cases in US
-        so that policy-makers can come up with short-term and long-term strategies to limit the spread and
-        mitigate the effect of another outbreak in the near future.
-        **US COVID-19 tracker is also a tool to assist making strategies.**
-        It can be used to understand what factors might affect the spread of the pandemic in US
-        and project the trend if more precautions and restrictions are imposed.
+        # US Covid Tracker
+        An web app to visualize the covid cases and deaths in the US
+        
         ## Data Source
-        Covid-19 tracker mainly utilizes historical and live covid-19 data from
+        Covid tracker utilizes historical and live covid-19 data from
         [New York Times github repository](https://github.com/nytimes/covid-19-data).
-        The hirarchical case and death [data](https://raw.githubusercontent.com/nytimes/covid-19-data/master/us.csv)
         **is regularly updated every day**.
-        Also, the data for state and county population is merged to obtain the positive rate over population at different
-        geographical levels.
-        Additionally, the [survey data](https://raw.githubusercontent.com/nytimes/covid-19-data/master/mask-use/mask-use-by-county.csv)
-        by New York time on maks use by county is investigated to see if there exists a
-        correlation between the outbreak and mask use frequency in each state. All data sets in this project are well-structured.
         ''', className='eleven columns', style={'paddingLeft': '5%'})], className="row")
 
 def visualization_description():
@@ -69,14 +57,11 @@ def visualization_description():
     return html.Div(children=[
       dcc.Markdown('''
             ## EDA & Interactive Visualization
-            This project uses `Dash` and `Plotly` for visualization. We use the
-            high-level components/tools in Dash to provide compact figures which allow user
-            to choose what to display. For example, we utilized radio items to select targets
-            (case or death number), dropdown layout to select the state, and slider to select
-            time points.
+            This project uses `Dash` and `Plotly` for visualization. 
             Curve plots are used to show the time variation of cumulative and daily reported
-            cases and deaths for the  national-level and state-level covid-19 data. Heat maps are used
-            to track the outbreak geographically.
+            cases and deaths for the  national-level and state-level covid-19 data. Heat maps of
+            geography data integrated are used o track the outbreak geographically. Pie chart helps
+            visualize the cases in a state-wise manner
         ''', className='row eleven columns', style={'paddingLeft': '5%'}),
     ]
     )
@@ -88,16 +73,7 @@ def enhancement_description():
     return html.Div(children=[
       dcc.Markdown('''
       ## Enhancement
-      Public health experts suggest that face coverings can substantially slow the transmission
-      of covid. In this section, we firstly use a heatmap to show the propensity of people to wear
-      masks in each county. This heat map is based on the survey data from a large number of interviews
-      conducted by the global data and survey firm Dynata at the request of The New York Times.
-      Next, we attempt to understand what factors might affect the spread of the pandamic in US states.
-      For this analysis, we select two responsive variables including case fatality rate and infection rate,
-      and two predictors, namely average wear-mask probability and population density. A simple and intuitive
-      linear correlation analysis is conducted. For Covid data, we use the latest state-level data for demonstration.
-      In order to obtain the state-level mask-use data, the county-level data is aggregated over states and we take
-      the average of features in each state to get the state-level features.
+      Correlation analysis
         ''', className='row eleven columns', style={'paddingLeft': '5%'}),
     ]
     )
@@ -647,4 +623,4 @@ def dynamic_layout():
 app.layout = dynamic_layout
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8888, host='0.0.0.0')
+    app.run_server(debug=True, port=8050, host='0.0.0.0')
