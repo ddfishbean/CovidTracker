@@ -4,12 +4,12 @@ from dash import html
 import numpy as np
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output
-from utils import get_state_codes, get_state_name, daily_increase, moving_average
-from utils import all_states, state_code_dict, state_map_dict, fip_to_county, fip_to_state
+# from utils import get_state_codes, get_state_name, daily_increase, moving_average
+# from utils import all_states, state_code_dict, state_map_dict, fip_to_county, fip_to_state
 from database import fetch_all_data_as_df
 
 # Definitions of constants. This projects uses extra CSS stylesheet at `./assets/style.css`
-COLORS = ['rgb(67,67,67)', 'rgb(115,115,115)', 'rgb(49,130,189)', 'rgb(189,189,189)']
+# COLORS = ['rgb(67,67,67)', 'rgb(115,115,115)', 'rgb(49,130,189)', 'rgb(189,189,189)']
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css', '/assets/style.css']
 
 # Define the dash app first
@@ -58,10 +58,10 @@ def visualization_description():
       dcc.Markdown('''
             ## EDA & Interactive Visualization
             This project uses `Dash` and `Plotly` for visualization. 
-            Curve plots are used to show the time variation of cumulative and daily reported
-            cases and deaths for the  national-level and state-level covid-19 data. Heat maps of
-            geography data integrated are used o track the outbreak geographically. Pie chart helps
-            visualize the cases in a state-wise manner
+            Line plots are used to show the cumulative and daily reported over time both in the 
+            states and in the country. Heat maps of geography data integrated are used to 
+            track the outbreak geographically. 
+            Pie chart helps visualize the cases in a state-wise manner
         ''', className='row eleven columns', style={'paddingLeft': '5%'}),
     ]
     )

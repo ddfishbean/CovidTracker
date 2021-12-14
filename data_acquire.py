@@ -7,19 +7,18 @@ import pandas as pd
 import numpy as np
 import logging
 import requests
-import pymango
+import pymongo
 from io import StringIO
 import utils
 
-from database import upsert_data
 
 MAX_DOWNLOAD_ATTEMPT = 10
 
-urls = {'counties': 'https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv',
-        'states': 'https://github.com/nytimes/covid-19-data/blob/master/us-states.csv',
-        'us': 'https://github.com/nytimes/covid-19-data/blob/master/us.csv'}
+urls = {'us': 'https://raw.githubusercontent.com/nytimes/covid-19-data/master/us.csv', 
+        'states': 'https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv'}
 
-
+filters = {'us': ['date'],
+           'states': ['date', 'state']}
 
 DOWNLOAD_PERIOD = 24*3600         # second --> every 24 hrs
 
@@ -50,17 +49,33 @@ def filter_data(text):
     """Converts `text` to `DataFrame`, removes empty lines and descriptions
     """
     # use StringIO to convert string to a readable buffer
-    df = pd.read_csv(StringIO(text), delimiter=',') 
+    df = pd.read_csv(StringIO(text), delimiter=',')
     df.columns = df.columns.str.strip()             # remove space in columns name  
     df['date'] = pd.to_datetime(df['date']) 
     df.dropna(inplace=True)             # drop rows with empty cells
     return df
 
+def upsert_data(df, geo='us'):
+    db = client.get_database(geo)   
+    collection = db.get_collection(geo) 
+    update_count = 0
+    for record in df.to_dict('records'):
+        #print(record)
+        result = collection.replace_one(
+            filter={_:record[_] for _ in filters[geo]},    # locate the document if exists
+            replacement=record,                         # latest document
+            upsert=True)                                # update if exists, insert if not
+        if result.matched_count > 0:
+            update_count += 1
+    print(f'{geo}:', 
+          f'rows={df.shape[0]}, update={update_count}, '
+          f'insert={df.shape[0]-update_count}')
 
 def update_once():
-    t = download_data()
-    df = filter_data(t)
-    upsert_bpa(df)
+    for geo, url in urls.items():
+        t = download_data(url)
+        df = filter_data(t)
+        upsert_data(df, geo)
 
 
 def main_loop(timeout=DOWNLOAD_PERIOD):
