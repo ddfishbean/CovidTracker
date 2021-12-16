@@ -28,21 +28,6 @@ def fetch_all_data():
         time.sleep(1)
     return ret_dict
 
-def fetch_all_db():
-    db = client.get_database("covid-us")
-    ret_dict = {}
-    for level in levels:
-        length = 0
-        while length == 0:
-            collection = db.get_collection(level)
-            ret = list(collection.find())
-            ret_dict[level] = ret
-            length = len(ret)
-            if length == 0:
-                time.sleep(30)
-            logger.info(str(length) + ' documents read from the db')
-        time.sleep(1)
-    return ret_dict
 
 _fetch_all_data_as_df_cache = expiringdict.ExpiringDict(max_len=10,
                                                        max_age_seconds=RESULT_CACHE_EXPIRATION)
