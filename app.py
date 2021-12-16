@@ -1,16 +1,31 @@
 import dash
 from dash import dcc
 from dash import html
+import json
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output
-# from utils import get_state_codes, get_state_name, daily_increase, moving_average
-# from utils import all_states, state_code_dict, state_map_dict, fip_to_county, fip_to_state
+from utils import daily_increase, moving_average
+from functools import reduce
+from datetime import datetime
+from urllib.request import urlopen
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
+
 from database import fetch_all_data_as_df
 
+# states fips
+with urlopen('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json') as response:
+    states = json.load(response)
+
 # Definitions of constants. This projects uses extra CSS stylesheet at `./assets/style.css`
-# COLORS = ['rgb(67,67,67)', 'rgb(115,115,115)', 'rgb(49,130,189)', 'rgb(189,189,189)']
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css', '/assets/style.css']
+colors = {
+"cases": 'rgb(49,130,189)',
+"deaths": 'rgb(16, 112, 2)'
+}
 
 # Define the dash app first
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
@@ -24,12 +39,12 @@ def page_header():
     Returns the page header as a dash `html.Div`
     """
     return html.Div(id='header', children=[
-        html.Div([html.H3('DATA1050 Final Project')],
+        html.Div([html.H3('DATA1050 Final Project - CovidTracker')],
                  className="ten columns"),
         html.A([html.Img(id='logo', src=app.get_asset_url('github.png'),
                          style={'height': '35px', 'paddingTop': '7%'}),
-                html.Span('Old boys', style={'fontSize': '2rem', 'height': '35px', 'bottom': 0,
-                                                'paddingLeft': '4px', 'color': '#a3a7b0',
+                html.Span('Doudou Yu and Yifei Song', style={'fontSize': '1.5rem', 'height': '35', 'bottom': 0,
+                                                'paddingLeft': '1px', 'color': '#a3a7b0',
                                                 'textDecoration': 'none'})],
                className="two columns row",
                href='https://github.com/ddfishbean/CovidTracker'),
@@ -58,155 +73,64 @@ def visualization_description():
       dcc.Markdown('''
             ## EDA & Interactive Visualization
             This project uses `Dash` and `Plotly` for visualization. 
-            Line plots are used to show the cumulative and daily reported over time both in the 
-            states and in the country. Heat maps of geography data integrated are used to 
-            track the outbreak geographically. 
-            Pie chart helps visualize the cases in a state-wise manner
+            Curve plots are used to show the time variation of cumulative and daily reported
+            cases and deaths for the  national-level and state-level covid-19 data. Heat maps of
+            geography data integrated are used o track the outbreak geographically. Pie chart helps
+            visualize the cases in a state-wise manner
         ''', className='row eleven columns', style={'paddingLeft': '5%'}),
     ]
     )
 
-def enhancement_description():
-    """
-    Returns the text and plots of Enhancements of this project.
-    """
-    return html.Div(children=[
-      dcc.Markdown('''
-      ## Enhancement
-      Correlation analysis
-        ''', className='row eleven columns', style={'paddingLeft': '5%'}),
-    ]
-    )
 
 # Defines the dependencies of interactive components
-@app.callback(Output('time-series-total', 'figure'),
+@app.callback(Output('cd', 'figure'),
              Input('target-label', 'value'))
-def time_series_cumulative(label):
+def cd(label):
     df = df_dict['us']
     x = df['date']
-    trace = go.Scatter(x=x, y=df[label], mode='lines', name=label, fill='tozeroy',
-                       fillcolor=colors[label],
-                       line={'width': 2, 'color': colors[label]},
-                       hovertemplate='%{x|%b %d, %Y} <br> %{y:-.0f}'
-                      )
+    stack=False
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x, y=df[label], mode='lines', name=label,
+                                line={'width': 3, 'color': colors[label]},
+                                stackgroup='stack' if stack else None))
+    # fig.add_trace(go.Scatter(x=x, y=df['Load'], mode='lines', name='Load',
+    #                          line={'width': 2, 'color': 'orange'}))
+    title = 'Accumulated cases and deaths in the US'
+    if stack:
+        title += ' [Stacked]'
 
-    title = f'Cumulative Covid {label.lower()} in U.S. over time'
-    layout = dict(title=title,
-                  yaxis_title=f'# of {label}',
-                  xaxis_title='Date/Time',
-                  font=dict(family="Courier New, monospace",
-                            size=16))
-    data = [trace]
-    fig = dict(data=data, layout=layout)
+    fig.update_layout(template='plotly_dark',
+                      title=title,
+                      plot_bgcolor='#23272c',
+                      paper_bgcolor='#23272c',
+                      yaxis_title='MW',
+                      xaxis_title='Date/Time')
     return fig
 
-@app.callback(Output('time-series-daily', 'figure'),
+@app.callback(Output('cd_stack', 'figure'),
              Input('daily-label', 'value'))
-def time_series_daily(label, window_size=7):
+def cd_stack(label, window_size=7):
     df = df_dict['us']
     x = df['date']
-    daily = daily_increase(df[label])
-    moving_avg = moving_average(daily, window_size)
+    stack=True
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x, y=df[label], mode='lines', name=label,
+                                line={'width': 2, 'color': colors[label]},
+                                stackgroup='stack' if stack else None))
+    # fig.add_trace(go.Scatter(x=x, y=df['Load'], mode='lines', name='Load',
+    #                          line={'width': 2, 'color': 'orange'}))
+    title = 'Accumulated cases and deaths in the US'
+    if stack:
+        title += ' [Stacked]'
 
-    trace1 = go.Bar(x=x, y=daily, name=f'Daily new {label}',
-                    marker = dict(color = colors_bar[label],
-                                  line=dict(color=colors_bar[label],width=1.5),
-                                  opacity=0.2),
-                    hovertemplate='%{x|%b %d, %Y} <br>Daily: %{y:-.0f}'
-                   )
-    trace2 = go.Scatter(x=x, y=moving_avg,
-                        name=f'Moving average in {window_size} days',
-                        line={'width':3, 'color': colors_line[label]},
-                        hovertemplate='Moving average: %{y:-.0f}'
-                        )
-
-    title = f'Daily reported new Covid {label.lower()} in U.S. over time'
-    layout = dict(title=title,
-                  yaxis_title=f'# of {label} per day',
-                  xaxis_title='Date/Time',
-                  font=dict(family="Courier New, monospace",
-                            size=16),
-                  hoverlabel=dict(
-                            bgcolor="white",
-                            font_size=16,
-                            font_family="Rockwell"),
-                  hovermode='x Unified',
-                  legend=dict(
-                        yanchor="top",
-                        y=0.99,
-                        xanchor="left",
-                        x=0.01)
-                 )
-    data = [trace1, trace2]
-    fig = dict(data=data, layout=layout)
+    fig.update_layout(template='plotly_dark',
+                      title=title,
+                      plot_bgcolor='#23272c',
+                      paper_bgcolor='#23272c',
+                      yaxis_title='MW',
+                      xaxis_title='Date/Time')
     return fig
 
-@app.callback(Output('time-series-state', 'figure'),
-            Input('plot-type', 'value'),
-            Input('state-name', 'value'),
-            Input('label-by-state', 'value'),
-             )
-def time_series_state(plot_type='daily', state_name='Rhode Island', label='cases',):
-#     print(label, plot_type, state_name)
-    df = df_dict['states']
-    df['state_code'] = df['state'].apply(lambda x: state_code_dict[x])
-    state_code = state_code_dict[state_name]
-    df_state = df[df.state_code == state_code]
-    state = state_name
-    df_state = df_state.sort_values(by='date')
-    df_state = pd.DataFrame(df_state, columns=df_state.columns)
-    x = df_state.date
-    y = df_state[label].values
-    if plot_type == 'daily':
-        window_size = 7
-        daily_cases = daily_increase(y)
-        moving_avg = moving_average(daily_cases, window_size)
-        trace_bar = go.Bar(x=x, y=daily_cases, name=f'Daily new {label}',
-                    marker = dict(color = colors_bar[label],
-                                  line=dict(color=colors_bar[label],width=1.5),
-                                  opacity=0.2),
-                    hovertemplate='Date: %{x|%A, %b %d, %Y} <br> Daily increase : %{y:.0f}'
-                   )
-        trace_line = go.Scatter(
-            x=x,
-            y=moving_avg,
-            name=f'Moving average in {window_size} days',
-            line={'width':1.5, 'color': colors_line[label]},
-            hovertemplate='7 Day Avg. : %{y:.0f}')
-        title = f'Daily reported new Covid {label.lower()} in {state}'
-        layout = dict(title=title,
-              yaxis_title=f'# of {label} per day',
-              xaxis_title='Date/Time',
-              font=dict(family="Courier New, monospace",
-                        size=16),
-              hoverlabel=dict(
-                bgcolor="white",
-                font_size=16,
-                font_family="Rockwell"),
-              hovermode='x Unified',
-              legend=dict(
-                        yanchor="top",
-                        y=0.99,
-                        xanchor="left",
-                        x=0.01))
-        fig = dict(data=[trace_bar, trace_line], layout=layout)
-        return fig
-    elif plot_type == 'cumulative':
-        trace = go.Scatter(x=x, y=y, mode='lines', name=label, fill='tozeroy',
-                       fillcolor=colors[label],
-                       line={'width': 2, 'color': colors[label]},
-                       hovertemplate='%{x|%b %d, %Y} <br> %{y:-.0f}'
-                      )
-
-        title = f'Cumulative Covid {label.lower()} in {state}'
-        layout = dict(title=title,
-                      yaxis_title=f'Confirmed # of {label}',
-                      xaxis_title='Date/Time',
-                      font=dict(family="Courier New, monospace",
-                                size=16))
-        data = [trace]
-        fig = dict(data=data, layout=layout)
-        return fig
 
 
 @app.callback(Output('heat-map-by-state', 'figure'),
@@ -215,23 +139,26 @@ def heat_map(label):
     """Create the heap map of given label in US at the beginning of given month"""
     df = df_dict['states']
     df['month'] = df.date.dt.month_name()
-    df['state_code'] = df['state'].apply(lambda x: get_state_codes(x))
     df_month = df[((df.date.dt.day == 1) | (df.date == max(df.date)))]
+    df_month['fips'] = df_month['fips'].apply(lambda x: str(x).zfill(2))
+
     fig = px.choropleth(df_month,
-                    locations='state_code',
-                    locationmode="USA-states",
-                    scope="usa",
+                    geojson=states,
+                    locations='fips',
+                    scope='usa',
                     color=label, # a column in the dataset
                     hover_name='state', # column to add to hover information
-                    hover_data = {'cases': ':.0f', 'deaths': ':.0f', 'state_code': False, 'month': False},
+                    hover_data = {'cases': ':.0f', 'deaths': ':.0f'},
                     color_continuous_scale=px.colors.sequential.Sunsetdark if \
                         label == 'cases' else px.colors.sequential.Greys,
                     animation_group='state',
                     animation_frame='month'
                    )
+    
+    fig.update_layout(mapbox_style="carto-positron", mapbox_zoom=3, mapbox_center = {"lat": 37.0902, "lon": -95.7129})
     fig.update_layout(title_text=f"Heat Map - Total {label.title()} in US States"),
     fig.update_layout(margin={"r":0,"l":0,"b":0})
-    fig.update_layout(transition_duration=500)
+    fig.update_layout(transition_duration=1)
 
     last_frame_num = len(fig.frames) -1
 
@@ -240,139 +167,6 @@ def heat_map(label):
     fig = go.Figure(data=fig['frames'][-1]['data'], frames=fig['frames'], layout=fig.layout)
     fig.update_coloraxes(colorbar_title=f"<b>Color</b><br>Confirmed {label.title()}")
     fig.layout.pop('updatemenus')
-    return fig
-
-
-def heat_map_mask_use():
-    df = df_dict['counties']
-    df['countyfp'] = df['countyfp'].apply(lambda x: str(int(x)).zfill(5))
-    df['wear_mask_prob'] = 0.25 * df['rarely'] + 0.5 * df['sometimes'] + \
-                0.75 * df['frequently'] + 1.0 * df['always']
-    df['county'] = df.apply(lambda x: fip_to_county(x.countyfp), axis=1)
-    df['state_code'] = df.apply(lambda x: fip_to_state(x.countyfp), axis=1)
-    df = df.drop(df[df['state_code'] == 'N/A'].index).reset_index(drop=True)
-    df['state'] = df['state_code'].apply(lambda x: state_map_dict[x])
-    fig = px.choropleth(df,
-                        locations='countyfp',
-                        geojson=county_json,
-                        scope="usa",
-                        color='wear_mask_prob', # a column in the dataset
-                        hover_name='state', # column to add to hover information
-                        hover_data = {'county': True, 'countyfp': False, 'wear_mask_prob': ':.3f'},
-                        color_continuous_scale=px.colors.sequential.Reds,
-                       )
-    fig.update_layout(title_text="Heat Map - Who is Wearing Masks in US Counties"),
-    fig.update_coloraxes(colorbar_title="<b>Color</b><br>Wear Mask Prob")
-    #fig.update(layout_coloraxis_showscale=False)
-    fig.update_layout(margin={"r":0,"l":0,"b":0})
-    return fig
-
-def scatter_matrix():
-    df = df_dict['states']
-    df.fips = df.fips.apply(lambda x: str(x).zfill(2))
-    df = df[df.date == max(df.date)]
-    df = df.drop(columns='date', axis=1).reset_index(drop=True)
-    state_pop = df_dict['state-population']
-    state_area =  df_dict['state-area']
-
-    mask_use = df_dict['counties']
-    mask_use.countyfp = mask_use.countyfp.apply(lambda x: str(x).zfill(5))
-    mask_use['wear_mask_prob'] = 0.25 * mask_use['rarely'] + 0.5 * mask_use['sometimes'] + \
-                    0.75 * mask_use['frequently'] + 1.0 * mask_use['always']
-    mask_use['state_code'] = mask_use.apply(lambda x: fip_to_state(x.countyfp), axis=1)
-    mask_use['county'] = mask_use.apply(lambda x: fip_to_county(x.countyfp), axis=1)
-    df_agg = mask_use.groupby('state_code').agg(['mean'])
-    df_agg.columns = ["_".join(x) for x in np.ravel(df_agg.columns)]
-    df_agg.reset_index(inplace=True)
-    df_agg.rename(columns={'wear_mask_prob_mean' : 'wear_mask_prob'}, inplace=True)
-    df_agg = df_agg[['state_code', 'wear_mask_prob']]
-    df_agg.drop(df_agg[df_agg['state_code'] == 'N/A'].index, inplace = True)
-    df_agg.drop(df_agg[df_agg['state_code'] == 'DC'].index, inplace = True)
-    df_agg['state'] = df_agg['state_code'].apply(lambda x: state_map_dict[x])
-    df_agg = df_agg[['state', 'wear_mask_prob']]
-    data_frames = [df, state_pop, state_area, df_agg]
-    df_merged = reduce(lambda left, right: pd.merge(left,right,on=['state'],
-                                                how='inner'), data_frames)
-
-    df_merged['CFR'] = df_merged['deaths'] / df_merged['cases']
-    df_merged['IR'] = df_merged['cases'] / df_merged['total']
-    df_merged['PD'] = df_merged['total'] / df_merged['area']
-    df_merged['WMP'] = df_merged['wear_mask_prob']
-    df_ana = df_merged.loc[:, ['state', 'CFR', 'IR', 'PD', 'WMP']]
-    df_ana[['CFR', 'IR', 'PD', 'WMP']] = np.round(df_ana[['CFR', 'IR', 'PD', 'WMP']], 3)
-
-    fig = go.Figure(data=go.Splom(
-                dimensions=[dict(label='CFR', # 'Fatality rate',
-                                 values=df_ana['CFR']),
-                            dict(label='IR', #'Infection rate',
-                                 values=df_ana['IR']),
-                            dict(label='PD', #'Population density',
-                                 values=df_ana['PD']),
-                            dict(label='WMP', #'Wear mask prob.',
-                                 values=df_ana['WMP'])],
-                text=df_ana['state'],
-#                 hovertemplate="%{x}, %{y}",
-                marker=dict(showscale=False, # colors encode categorical variables
-                            line_color='white', line_width=0.5),
-                showupperhalf=False,
-                ))
-
-    fig.update_layout(
-    title='Scatter Matrix',
-    dragmode='select',
-    width=600,
-    height=600,
-    hovermode='closest',
-    )
-    return fig
-
-
-def correlation_matrix():
-    df = df_dict['states']
-    df.fips = df.fips.apply(lambda x: str(x).zfill(2))
-    df = df[df.date == max(df.date)]
-    df = df.drop(columns='date', axis=1).reset_index(drop=True)
-    state_pop = df_dict['state-population']
-    state_area =  df_dict['state-area']
-
-    mask_use = df_dict['mask-use-by-county']
-    mask_use.countyfp = mask_use.countyfp.apply(lambda x: str(x).zfill(5))
-    mask_use['wear_mask_prob'] = 0.25 * mask_use['rarely'] + 0.5 * mask_use['sometimes'] + \
-                    0.75 * mask_use['frequently'] + 1.0 * mask_use['always']
-    mask_use['state_code'] = mask_use.apply(lambda x: fip_to_state(x.countyfp), axis=1)
-    mask_use['county'] = mask_use.apply(lambda x: fip_to_county(x.countyfp), axis=1)
-    df_agg = mask_use.groupby('state_code').agg(['mean'])
-    df_agg.columns = ["_".join(x) for x in np.ravel(df_agg.columns)]
-    df_agg.reset_index(inplace=True)
-    df_agg.rename(columns={'wear_mask_prob_mean' : 'wear_mask_prob'}, inplace=True)
-    df_agg = df_agg[['state_code', 'wear_mask_prob']]
-    df_agg.drop(df_agg[df_agg['state_code'] == 'N/A'].index, inplace = True)
-    df_agg.drop(df_agg[df_agg['state_code'] == 'DC'].index, inplace = True)
-    df_agg['state'] = df_agg['state_code'].apply(lambda x: state_map_dict[x])
-    df_agg = df_agg[['state', 'wear_mask_prob']]
-    data_frames = [df, state_pop, state_area, df_agg]
-    df_merged = reduce(lambda left, right: pd.merge(left,right,on=['state'],
-                                                how='inner'), data_frames)
-
-    df_merged['CFR'] = df_merged['deaths'] / df_merged['cases']
-    df_merged['IR'] = df_merged['cases'] / df_merged['total']
-    df_merged['PD'] = df_merged['total'] / df_merged['area']
-    df_merged['WMP'] = df_merged['wear_mask_prob']
-    df_ana = df_merged.loc[:, ['state', 'CFR', 'IR', 'PD', 'WMP']]
-    df_ana[['CFR', 'IR', 'PD', 'WMP']] = np.round(df_ana[['CFR', 'IR', 'PD', 'WMP']], 3)
-    df_corr = df_ana[['CFR', 'IR', 'PD', 'WMP']].corr()
-
-    fig = go.Figure(data=go.Heatmap(z=df_corr,
-                                    x=['CFR', 'IR', 'PD', 'WMP'],
-                                    y=['CFR', 'IR', 'PD', 'WMP'],
-                                    colorscale='Blues',
-                                   hovertemplate=" Corr(%{x}, %{y}) = %{z:.2f}"),
-                   )
-    fig.update_layout(
-        title='Correlation Matrix',
-        height=600,
-        width=600,
-        )
     return fig
 
 
@@ -401,6 +195,21 @@ def architecture_summary():
     ], className='row')
 
 
+def scatterplot():
+    fig = px.scatter_matrix(df_dict['states'],
+    dimensions=["deaths", "cases"],
+    color="state", symbol='state')
+
+    fig.update_layout(
+    title='Scatter matrix of covid cases and deaths',
+    dragmode='select',
+    width=720,
+    height=720,
+    hovermode='closest')
+
+    return fig
+
+
 def visualization_summary():
     """
     All EDA figures should be arranged in this function.
@@ -412,7 +221,7 @@ def visualization_summary():
 
             # Time series curves for cumulative cases and deaths in US
             dcc.Markdown('''
-            #### Time-series cumulative cases and deaths
+            #### Accumulated cases and deaths in the US
             ''', className='row eleven columns', style={'paddingLeft': '5%'}),
 
             html.Div([
@@ -435,13 +244,13 @@ def visualization_summary():
                         'font-weight': 'bold',
                         'color': 'white',
                         }),],  style={'width': '98%', 'display': 'inline-block'}),
-                dcc.Graph(id='time-series-total', style={'height': 500, 'width': 1100})
+                dcc.Graph(id='cd', style={'height': 500, 'width': 1100})
                 ],
                 style={'width': '98%', 'float': 'right', 'display': 'inline-block'}),
 
             # Time series curves for daily cases and deaths in US
                     dcc.Markdown('''
-            #### Time-series daily reported cases and deaths
+            #### Accumulated cases and deaths in the US (Stacked)
             ''', className='row eleven columns', style={'paddingLeft': '5%'}),
             html.Div([
                 html.Div([
@@ -463,72 +272,10 @@ def visualization_summary():
                         'font-weight': 'bold',
                         'color': 'white',
                         }),],  style={'width': '98%', 'display': 'inline-block'}),
-                dcc.Graph(id='time-series-daily', style={'height': 500, 'width': 1100})
+                dcc.Graph(id='cd_stack', style={'height': 500, 'width': 1100})
             ],
                 style={'width': '98%', 'float': 'right', 'display': 'inline-block'}),
 
-        dcc.Markdown('''
-        ### Case and Death Count by State
-        ''', className='row eleven columns', style={'paddingLeft': '0%'}),
-
-             # Time series curves for cases and deaths by state
-            dcc.Markdown('''
-            #### Time-series cases and deaths by state
-            ''', className='row eleven columns', style={'paddingLeft': '5%'}),
-
-            html.Div([
-                html.Div([
-                    html.Label( ['Label:'],
-                        style={'font-weight': 'bold', 'float': 'left',
-                               'color': 'white', 'display': 'inline-block',
-                               },
-                        ),
-                    dcc.RadioItems(
-                        id='label-by-state',
-                        options=[{'label': i.title(), 'value': i} for i in ['cases', 'deaths']],
-                        value='cases',
-                        labelStyle={
-                        'display': 'inline-block',
-                        },
-                        style={
-                        'width': '20%',
-                        'float': 'left',
-                        'font-weight': 'bold',
-                        'color': 'white',
-                        }),
-                    html.Label( ['Plot type:'],
-                        style={'font-weight': 'bold', 'float': 'left',
-                               'color': 'white', 'display': 'inline-block',
-                               },
-                        ),
-                    dcc.RadioItems(
-                        id='plot-type',
-                        options=[{'label': i.title(), 'value': i} for i in ['cumulative', 'daily']],
-                        value='daily',
-                        labelStyle={
-                        'display': 'inline-block',
-                        },
-                        style={
-                        'width': '20%',
-                        'float': 'left',
-                        'font-weight': 'bold',
-                        'color': 'white',
-                        }),
-                    html.Label( ['State:'],
-                        style={'font-weight': 'bold', 'float': 'left',
-                               'color': 'white', 'display': 'inline-block',
-                               'margin-right': '10px'
-                               },
-                        ),
-                    dcc.Dropdown(
-                        id='state-name',
-                        options=[{'label': i, 'value': i} for i in list(all_states)],
-                        value='Rhode Island',
-                        style={'width': '40%', 'float':'left', 'display': 'inline-block'}
-                    ),],  style={'width': '98%', 'display': 'inline-block'}),
-                dcc.Graph(id='time-series-state', style={'height': 500, 'width': 1100})
-                ],
-                style={'width': '98%', 'float': 'right', 'display': 'inline-block'}),
 
             # Heat map by month
             dcc.Markdown('''
@@ -561,66 +308,34 @@ def visualization_summary():
             ],
                 style={'width': '100%', 'float':'right', 'display': 'inline-block'}),
 
-    ])
+             # Enhacement
+            dcc.Markdown('''
+            #### Correlation scatter matrix - Covid in US states
+            We use the state-level most updated data to power the scattermatrix and check the relationship
+            between the death and confirmed cases in each state.
+            ''', className='row eleven columns', style={'paddingLeft': '0%'}),
 
-def enhancement_summary():
-    """
-    All Enhancement details should be arranged here.
-    """
-    return html.Div(children=[
-         dcc.Markdown('''
-          ### Who is Wearing Masks in US Counties？
-         ''', className='row eleven columns', style={'paddingLeft': '6%'}),
-         dcc.Graph(id='mask-use-by-county', figure=heat_map_mask_use(),
-                   style={'height': 800, 'width': 1000, 'display': 'inline-block'}),
-
-         dcc.Markdown('''
-          ### Whether Population Density and Propensity of Wearing Masks Affect the Spread?
-         ''', className='row eleven columns', style={'paddingLeft': '0%'}),
-        html.Div([
-             html.Label( ['CFR: Case Fatality Rate'],
+            html.Div([
+                html.Div([
+                    html.Label( [''],
                         style={'font-weight': 'bold', 'float': 'left',
                                'color': 'white', 'display': 'inline-block',
                                },
-                        ),
-             html.Label( ['IR: Infeaction Rate',],
-                        style={'font-weight': 'bold', 'float': 'left','margin-left': '100px',
-                               'color': 'white', 'display': 'inline-block',
-                               },
-                        ),
-             html.Label( ['PD: Population Density',],
-                        style={'font-weight': 'bold', 'float': 'left', 'margin-left': '100px',
-                               'color': 'white', 'display': 'inline-block',
-                               },
-                        ),
-             html.Label( ['WMP: Wear Mask Probability'],
-                style={'font-weight': 'bold', 'float': 'left','margin-left': '100px',
-                       'color': 'white', 'display': 'inline-block',
-                       },
-                ),
-             dcc.Graph(id='scatter-matrix', figure=scatter_matrix(),
-                       style={'width': '48%',  'display': 'inline-block'}),
-             dcc.Graph(id='correlation-matrix', figure=correlation_matrix(),
-                       style={'width': '48%', 'float':'right', 'display': 'inline-block'}),
-         ], style={'width': '100%',  'display': 'inline-block'}),
-    ]
-                   )
+                        ),],  style={'width': '98%', 'display': 'inline-block'}),
+                dcc.Graph(id='scatterplot', figure=scatterplot(), style={'height': 800, 'width': 1000})
+            ],
+                style={'width': '100%', 'float':'right', 'display': 'inline-block'}),
+    ])
 
-# Sequentially add page components to the app's layout
-def dynamic_layout():
-    return html.Div([
+
+app.layout = html.Div([
         page_header(),
         html.Hr(),
         project_description(),
         visualization_description(),
         visualization_summary(),
-        enhancement_description(),
-        enhancement_summary(),
-        # architecture_summary(),
+        architecture_summary(),
     ], className='row', id='content')
 
-# set layout to a function which updates upon reloading
-app.layout = dynamic_layout
-
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8050, host='0.0.0.0')
+    app.run_server(debug=True, host='0.0.0.0')
